@@ -1,0 +1,15 @@
+.git
+.gitignore
+node_modules
+android
+ios
+.expo
+.expo-shared
+*.log
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+coverage
+dist
+build

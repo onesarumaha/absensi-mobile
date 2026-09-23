@@ -63,6 +63,12 @@
         }
       ]
     ],
-    "experiments": {}
+    "experiments": {},
+    "extra": {
+      "eas": {
+        "projectId": "849766d4-3149-4fb5-a4cd-78044c01501b"
+      }
+    },
+    "owner": "onesarumaha"
   }
 }

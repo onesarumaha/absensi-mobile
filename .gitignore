@@ -36,8 +36,13 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-example
-
 # generated native folders
 /ios
 /android
+
+# APK / AAB (hasil build)
+*.apk
+*.aab
+
+# Logs
+*.log

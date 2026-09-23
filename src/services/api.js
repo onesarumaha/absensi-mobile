@@ -12,7 +12,7 @@ const getSafeToken = async () => {
 };
 
 const API = axios.create({
-  baseURL: 'http://192.168.31.141:8000/api/v1',
+  baseURL: 'http://43.129.37.27:8085/api/v1',
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
