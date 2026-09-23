@@ -12,8 +12,7 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "node": "20.20.2"
+      }
     },
     "production": {
       "autoIncrement": true
