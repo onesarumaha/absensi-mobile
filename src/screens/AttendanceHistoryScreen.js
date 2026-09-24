@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Modal,
   RefreshControl,
@@ -28,7 +29,6 @@ const STATUS_CONFIG = {
   alpha: { bg: '#fee2e2', color: '#dc2626', label: 'Alpha', icon: 'close-circle' },
 };
 
-/* Helper: format tanggal dari "2026-09-19" → "19 Sep 2026" */
 const formatDisplayDate = (dateStr) => {
   if (!dateStr) return '-';
   try {
@@ -43,7 +43,6 @@ const formatDisplayDate = (dateStr) => {
   }
 };
 
-/* Helper: format hari dari "2026-09-19" → "Jumat" */
 const formatDay = (dateStr) => {
   if (!dateStr) return '-';
   try {
@@ -54,7 +53,6 @@ const formatDay = (dateStr) => {
   }
 };
 
-/* Helper: hitung durasi kerja dalam format "8j 40m" */
 const hitungDurasi = (checkIn, checkOut) => {
   if (!checkIn || !checkOut) return '-';
   try {
@@ -73,13 +71,23 @@ const hitungDurasi = (checkIn, checkOut) => {
 };
 
 export default function AttendanceHistoryScreen() {
+  const navigation = useNavigation();
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState('semua');
   const [selectedItem, setSelectedItem] = useState(null);
 
-  /* ===== Load data dari backend ===== */
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory();
+    }, [])
+  );
+
   const loadHistory = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
@@ -94,16 +102,31 @@ export default function AttendanceHistoryScreen() {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadHistory();
-    }, [])
-  );
-
   const onRefresh = () => {
     setRefreshing(true);
     loadHistory(false);
   };
+
+  /* ===== Animasi masuk ===== */
+  const startAnimation = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // Jalankan animasi setelah loading selesai
+  if (!loading && fadeAnim._value === 0) {
+    startAnimation();
+  }
 
   /* ===== Statistik ===== */
   const stats = {
@@ -129,7 +152,6 @@ export default function AttendanceHistoryScreen() {
       ? data
       : data.filter((d) => d.status === activeFilter);
 
-  /* Format range tanggal */
   const headerRange =
     data.length > 0
       ? `${formatDisplayDate(data[data.length - 1]?.date)} – ${formatDisplayDate(data[0]?.date)}`
@@ -138,200 +160,216 @@ export default function AttendanceHistoryScreen() {
   /* ===== Render ===== */
   return (
     <View style={styles.root}>
-      <AnimatedBackground />
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <AnimatedBackground />
+      </View>
 
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#2563eb']}
-              tintColor="#2563eb"
+        {/* ===== HEADER (sama seperti EmployeeListScreen) ===== */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialCommunityIcons
+              name="arrow-left"
+              size={22}
+              color="#ffffff"
             />
-          }
-        >
-          {/* HEADER */}
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Riwayat Absensi</Text>
-              <Text style={styles.subtitle}>{headerRange}</Text>
-            </View>
-            <View style={styles.monthPicker}>
-              <MaterialCommunityIcons
-                name="calendar-month"
-                size={16}
-                color="#2563eb"
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.headerTitle}>Riwayat Absensi</Text>
+            <Text style={styles.headerSubtitle}>{headerRange}</Text>
+          </View>
+
+          <View style={{ width: 38 }} />
+        </View>
+
+        {loading ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator size="large" color="#2563eb" />
+            <Text style={styles.loadingText}>Memuat data absensi...</Text>
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#2563eb']}
+                tintColor="#2563eb"
               />
-              <Text style={styles.monthPickerText}>Bulan Ini</Text>
-            </View>
-          </View>
-
-          {/* STATISTIK */}
-          <View style={styles.statsCard}>
-            {[
-              { icon: 'check-circle', color: '#16a34a', bg: '#dcfce7', value: stats.hadir, label: 'Hadir' },
-              { icon: 'clock-alert', color: '#d97706', bg: '#fef3c7', value: stats.terlambat, label: 'Telat' },
-              { icon: 'file-document', color: '#2563eb', bg: '#dbeafe', value: stats.izin, label: 'Izin' },
-              { icon: 'close-circle', color: '#dc2626', bg: '#fee2e2', value: stats.alpha, label: 'Alpha' },
-            ].map((s, i, arr) => (
-              <View
-                key={s.label}
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-              >
-                <View style={styles.statBox}>
-                  <View style={[styles.statIconBg, { backgroundColor: s.bg }]}>
-                    <MaterialCommunityIcons
-                      name={s.icon}
-                      size={20}
-                      color={s.color}
-                    />
-                  </View>
-                  <Text style={[styles.statValue, { color: s.color }]}>
-                    {s.value}
-                  </Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
-                {i < arr.length - 1 && <View style={styles.statDivider} />}
-              </View>
-            ))}
-          </View>
-
-          {/* PROGRESS */}
-          <View style={styles.progressCard}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressTitle}>Kehadiran Bulan Ini</Text>
-              <Text style={styles.progressPercent}>{persenKehadiran}%</Text>
-            </View>
-            <View style={styles.progressBar}>
-              <View
-                style={[styles.progressFill, { width: `${persenKehadiran}%` }]}
-              />
-            </View>
-            <Text style={styles.progressSub}>
-              {stats.hadir + stats.terlambat} dari {data.length} hari tercatat
-            </Text>
-          </View>
-
-          {/* FILTER */}
-          <View style={styles.filterRow}>
-            {filters.map((f) => (
-              <TouchableOpacity
-                key={f.key}
-                style={[
-                  styles.filterChip,
-                  activeFilter === f.key && styles.filterChipActive,
-                ]}
-                onPress={() => setActiveFilter(f.key)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    activeFilter === f.key && styles.filterTextActive,
-                  ]}
-                >
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* LIST */}
-          <Text style={styles.sectionTitle}>
-            Detail Absensi ({filteredData.length})
-          </Text>
-
-          {loading ? (
-            <View style={styles.emptyBox}>
-              <ActivityIndicator color="#2563eb" />
-              <Text style={styles.emptyText}>Memuat data...</Text>
-            </View>
-          ) : filteredData.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <MaterialCommunityIcons
-                name="calendar-blank-outline"
-                size={48}
-                color="#cbd5e1"
-              />
-              <Text style={styles.emptyText}>
-                Belum ada data absensi.{'\n'}Silakan absen di halaman Absen.
-              </Text>
-            </View>
-          ) : (
-            filteredData.map((item) => {
-              const st = STATUS_CONFIG[item.status] || STATUS_CONFIG.hadir;
-              const dateObj = new Date(item.date);
-              const dayNum = dateObj.getDate() || '-';
-              const monthShort = dateObj
-                .toLocaleDateString('id-ID', { month: 'short' })
-                .replace('.', '');
-              const dayName = formatDay(item.date);
-
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.card}
-                  onPress={() => setSelectedItem(item)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.cardLeft}>
-                    <View style={styles.dateCol}>
-                      <Text style={styles.dateText}>{dayNum}</Text>
-                      <Text style={styles.monthText}>{monthShort}</Text>
-                    </View>
-
-                    <View style={styles.cardInfo}>
-                      <Text style={styles.dayText}>{dayName}</Text>
-                      <View style={styles.timeRow}>
-                        <View style={styles.timeItem}>
-                          <MaterialCommunityIcons
-                            name="login"
-                            size={12}
-                            color="#16a34a"
-                          />
-                          <Text style={styles.timeText}>
-                            {item.check_in?.substring(0, 5) || '-'}
-                          </Text>
-                        </View>
-                        <View style={styles.timeItem}>
-                          <MaterialCommunityIcons
-                            name="logout"
-                            size={12}
-                            color="#db2777"
-                          />
-                          <Text style={styles.timeText}>
-                            {item.check_out?.substring(0, 5) || '-'}
-                          </Text>
-                        </View>
-                        {item.check_in && item.check_out && (
-                          <Text style={styles.durationText}>
-                            · {hitungDurasi(item.check_in, item.check_out)}
-                          </Text>
-                        )}
+            }
+          >
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }}
+            >
+              {/* STATISTIK */}
+              <View style={styles.statsCard}>
+                {[
+                  { icon: 'check-circle', color: '#16a34a', bg: '#dcfce7', value: stats.hadir, label: 'Hadir' },
+                  { icon: 'clock-alert', color: '#d97706', bg: '#fef3c7', value: stats.terlambat, label: 'Telat' },
+                  { icon: 'file-document', color: '#2563eb', bg: '#dbeafe', value: stats.izin, label: 'Izin' },
+                  { icon: 'close-circle', color: '#dc2626', bg: '#fee2e2', value: stats.alpha, label: 'Alpha' },
+                ].map((s, i, arr) => (
+                  <View
+                    key={s.label}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <View style={styles.statBox}>
+                      <View style={[styles.statIconBg, { backgroundColor: s.bg }]}>
+                        <MaterialCommunityIcons
+                          name={s.icon}
+                          size={20}
+                          color={s.color}
+                        />
                       </View>
+                      <Text style={[styles.statValue, { color: s.color }]}>
+                        {s.value}
+                      </Text>
+                      <Text style={styles.statLabel}>{s.label}</Text>
                     </View>
+                    {i < arr.length - 1 && <View style={styles.statDivider} />}
                   </View>
+                ))}
+              </View>
 
-                  <View style={[styles.statusBadge, { backgroundColor: st.bg }]}>
-                    <MaterialCommunityIcons
-                      name={st.icon}
-                      size={12}
-                      color={st.color}
-                    />
-                    <Text style={[styles.statusText, { color: st.color }]}>
-                      {st.label}
+              {/* PROGRESS */}
+              <View style={styles.progressCard}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressTitle}>Kehadiran Bulan Ini</Text>
+                  <Text style={styles.progressPercent}>{persenKehadiran}%</Text>
+                </View>
+                <View style={styles.progressBar}>
+                  <View
+                    style={[styles.progressFill, { width: `${persenKehadiran}%` }]}
+                  />
+                </View>
+                <Text style={styles.progressSub}>
+                  {stats.hadir + stats.terlambat} dari {data.length} hari tercatat
+                </Text>
+              </View>
+
+              {/* FILTER */}
+              <View style={styles.filterRow}>
+                {filters.map((f) => (
+                  <TouchableOpacity
+                    key={f.key}
+                    style={[
+                      styles.filterChip,
+                      activeFilter === f.key && styles.filterChipActive,
+                    ]}
+                    onPress={() => setActiveFilter(f.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        activeFilter === f.key && styles.filterTextActive,
+                      ]}
+                    >
+                      {f.label}
                     </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-          <View style={{ height: 30 }} />
-        </ScrollView>
+              {/* LIST */}
+              <Text style={styles.sectionTitle}>
+                Detail Absensi ({filteredData.length})
+              </Text>
+
+              {filteredData.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <MaterialCommunityIcons
+                    name="calendar-blank-outline"
+                    size={48}
+                    color="#cbd5e1"
+                  />
+                  <Text style={styles.emptyText}>
+                    Belum ada data absensi.{'\n'}Silakan absen di halaman Absen.
+                  </Text>
+                </View>
+              ) : (
+                filteredData.map((item) => {
+                  const st = STATUS_CONFIG[item.status] || STATUS_CONFIG.hadir;
+                  const dateObj = new Date(item.date);
+                  const dayNum = dateObj.getDate() || '-';
+                  const monthShort = dateObj
+                    .toLocaleDateString('id-ID', { month: 'short' })
+                    .replace('.', '');
+                  const dayName = formatDay(item.date);
+
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.card}
+                      onPress={() => setSelectedItem(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.cardLeft}>
+                        <View style={styles.dateCol}>
+                          <Text style={styles.dateText}>{dayNum}</Text>
+                          <Text style={styles.monthText}>{monthShort}</Text>
+                        </View>
+
+                        <View style={styles.cardInfo}>
+                          <Text style={styles.dayText}>{dayName}</Text>
+                          <View style={styles.timeRow}>
+                            <View style={styles.timeItem}>
+                              <MaterialCommunityIcons
+                                name="login"
+                                size={12}
+                                color="#16a34a"
+                              />
+                              <Text style={styles.timeText}>
+                                {item.check_in?.substring(0, 5) || '-'}
+                              </Text>
+                            </View>
+                            <View style={styles.timeItem}>
+                              <MaterialCommunityIcons
+                                name="logout"
+                                size={12}
+                                color="#db2777"
+                              />
+                              <Text style={styles.timeText}>
+                                {item.check_out?.substring(0, 5) || '-'}
+                              </Text>
+                            </View>
+                            {item.check_in && item.check_out && (
+                              <Text style={styles.durationText}>
+                                · {hitungDurasi(item.check_in, item.check_out)}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={[styles.statusBadge, { backgroundColor: st.bg }]}>
+                        <MaterialCommunityIcons
+                          name={st.icon}
+                          size={12}
+                          color={st.color}
+                        />
+                        <Text style={[styles.statusText, { color: st.color }]}>
+                          {st.label}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+
+              <View style={{ height: 30 }} />
+            </Animated.View>
+          </ScrollView>
+        )}
       </SafeAreaView>
 
       {/* ===== MODAL DETAIL ===== */}
@@ -568,7 +606,6 @@ export default function AttendanceHistoryScreen() {
                   </View>
                 </View>
 
-                {/* Info telat */}
                 {selectedItem?.late_minutes > 0 && (
                   <View style={styles.lateBox}>
                     <MaterialCommunityIcons
@@ -651,28 +688,45 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { padding: 20, paddingBottom: 120 },
 
-  /* Header */
+  /* ===== HEADER — sama seperti EmployeeListScreen ===== */
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    justifyContent: 'space-between',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  centerBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 10,
   },
-  title: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
-  subtitle: { fontSize: 12, color: '#64748b', marginTop: 4 },
-  monthPicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  monthPickerText: { fontSize: 11, fontWeight: '700', color: '#2563eb' },
+  loadingText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
 
   /* Stats */
   statsCard: {

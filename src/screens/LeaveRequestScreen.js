@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -132,6 +132,8 @@ function DateInput({ label, value, onChange, icon = 'calendar' }) {
 
 /* ===== MAIN SCREEN ===== */
 export default function LeaveRequestScreen() {
+  const navigation = useNavigation();
+
   const [leaveType, setLeaveType] = useState('cuti');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -207,7 +209,6 @@ export default function LeaveRequestScreen() {
     setEndDate(item.end_date?.split('T')[0] || item.end_date);
     setReason(item.reason || '');
 
-    // Scroll ke atas
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
@@ -353,8 +354,34 @@ export default function LeaveRequestScreen() {
   /* ===== RENDER ===== */
   return (
     <View style={styles.root}>
-      <AnimatedBackground />
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <AnimatedBackground />
+      </View>
+
       <SafeAreaView style={styles.safe} edges={['top']}>
+        {/* ===== HEADER (sama seperti Data Pegawai) ===== */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialCommunityIcons
+              name="arrow-left"
+              size={22}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.headerTitle}>Pengajuan Cuti & Izin</Text>
+            <Text style={styles.headerSubtitle}>
+              Ajukan cuti, izin, atau sakit dari sini
+            </Text>
+          </View>
+
+          <View style={{ width: 38 }} />
+        </View>
+
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.content}
@@ -368,14 +395,6 @@ export default function LeaveRequestScreen() {
             />
           }
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Pengajuan Cuti & Izin</Text>
-            <Text style={styles.subtitle}>
-              Ajukan cuti, izin, atau sakit dari sini
-            </Text>
-          </View>
-
           {/* Banner Mode Edit */}
           {editingId && (
             <View style={styles.editBanner}>
@@ -667,11 +686,40 @@ export default function LeaveRequestScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f0f9ff' },
   safe: { flex: 1 },
-  content: { padding: 20, paddingBottom: 60 },
 
-  header: { marginBottom: 18 },
-  title: { fontSize: 22, fontWeight: '800', color: '#0f172a' },
-  subtitle: { fontSize: 12, color: '#64748b', marginTop: 4 },
+  /* ===== HEADER — sama seperti EmployeeListScreen ===== */
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  content: { padding: 20, paddingBottom: 60 },
 
   sectionTitle: {
     fontSize: 14,

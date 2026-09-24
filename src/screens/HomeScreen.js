@@ -48,6 +48,7 @@ const MENUS = [
     icon: 'account-group',
     color: '#fef3c7',
     iconColor: '#d97706',
+    screen : 'EmployeeList',
   },
   {
     id: 4,
@@ -284,7 +285,7 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.logoRowLeft}>
                   <View style={styles.logoBadge}>
                     <MaterialCommunityIcons
-                      name="fingerprint"
+                      name="face-recognition"
                       size={22}
                       color="#ffffff"
                     />

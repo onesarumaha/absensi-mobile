@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
 import AttendanceScreen from '../screens/AttendanceScreen';
+import EmployeeListScreen from '../screens/EmployeeListScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaveRequestScreen from '../screens/LeaveRequestScreen';
 import RadiusSettingScreen from '../screens/RadiusSettingScreen';
@@ -21,6 +22,8 @@ const VISIBLE_TABS = [
 const HIDDEN_TABS = [
   { name: 'LeaveRequest', component: LeaveRequestScreen },
   { name: 'RadiusSetting', component: RadiusSettingScreen },
+  { name: 'EmployeeList', component: EmployeeListScreen },
+  
 ];
 
 /* Custom Tab Bar — hanya render VISIBLE_TABS */

@@ -13,7 +13,7 @@ const getSafeToken = async () => {
 
 
 const API = axios.create({
-  baseURL: 'https://api-absensi.onesarumaha.my.id/api/v1',
+  baseURL: process.env.EXPO_PUBLIC_API_URL,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',

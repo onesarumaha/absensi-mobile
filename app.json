@@ -61,7 +61,8 @@
           "locationAlwaysAndWhenInUsePermission": "Aplikasi membutuhkan lokasi Anda untuk mencatat tempat absensi.",
           "locationWhenInUsePermission": "Aplikasi membutuhkan lokasi Anda untuk mencatat tempat absensi."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {},
     "extra": {

@@ -46,3 +46,6 @@ yarn-error.*
 
 # Logs
 *.log
+
+.env
+.env.local

@@ -30,31 +30,6 @@ const PARTICLES = [
   { id: 6, text: '✔️', size: 18, startX: width * 0.85, duration: 21000, delay: 4000 },
 ];
 
-/* Akun demo — tap untuk auto-fill */
-const DEMO_ACCOUNTS = [
-  {
-    email: 'admin@absensi.test',
-    password: '123456',
-    name: 'Administrator',
-    role: 'Admin',
-    icon: 'shield-account',
-  },
-  {
-    email: 'pegawai@absensi.test',
-    password: '123456',
-    name: 'Pegawai Demo',
-    role: 'Pegawai',
-    icon: 'account-tie',
-  },
-  {
-    email: 'budi@absensi.test',
-    password: '123456',
-    name: 'Budi Santoso',
-    role: 'Staff Marketing',
-    icon: 'account',
-  },
-];
-
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -176,14 +151,6 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  /* Quick login dari akun demo */
-  const handleQuickLogin = (acc) => {
-    setEmail(acc.email);
-    setPassword(acc.password);
-    setErrors({});
-    setGeneralError('');
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* ===== BACKGROUND BIRU GRADIENT + PARTICLES ===== */}
@@ -244,7 +211,7 @@ export default function LoginScreen({ navigation }) {
             <View style={styles.header}>
               <View style={styles.logoCircle}>
                 <MaterialCommunityIcons
-                  name="fingerprint"
+                  name="face-recognition"
                   size={48}
                   color="#ffffff"
                 />
@@ -393,41 +360,6 @@ export default function LoginScreen({ navigation }) {
                   </>
                 )}
               </TouchableOpacity>
-            </View>
-
-            {/* ===== DAFTAR AKUN DEMO ===== */}
-            <View style={styles.demoSection}>
-              <View style={styles.demoHeader}>
-                <View style={styles.demoLine} />
-                <Text style={styles.demoTitle}>Akun Demo (Tap untuk isi)</Text>
-                <View style={styles.demoLine} />
-              </View>
-
-              <View style={styles.demoList}>
-                {DEMO_ACCOUNTS.map((acc) => (
-                  <TouchableOpacity
-                    key={acc.email}
-                    style={styles.demoItem}
-                    onPress={() => handleQuickLogin(acc)}
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.demoIconWrap}>
-                      <MaterialCommunityIcons
-                        name={acc.icon}
-                        size={20}
-                        color="#2563eb"
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.demoName}>{acc.name}</Text>
-                      <Text style={styles.demoEmail}>{acc.email}</Text>
-                    </View>
-                    <View style={styles.demoRoleBadge}>
-                      <Text style={styles.demoRoleText}>{acc.role}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
 
             {/* ===== FOOTER ===== */}
@@ -635,71 +567,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.5,
-  },
-
-  /* Demo Accounts */
-  demoSection: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  demoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  demoLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  demoTitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  demoList: {
-    gap: 8,
-  },
-  demoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  demoIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  demoName: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  demoEmail: {
-    color: 'rgba(255, 255, 255, 0.65)',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  demoRoleBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(147, 197, 253, 0.25)',
-  },
-  demoRoleText: {
-    color: '#dbeafe',
-    fontSize: 9,
-    fontWeight: '800',
   },
 
   /* Footer */

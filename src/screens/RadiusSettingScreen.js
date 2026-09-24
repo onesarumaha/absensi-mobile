@@ -1,15 +1,17 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -308,9 +310,14 @@ function ScheduleFormModal({
 export default function RadiusSettingScreen({ navigation }) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const fabAnim = useRef(new Animated.Value(0)).current;
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -327,11 +334,34 @@ export default function RadiusSettingScreen({ navigation }) {
   const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(fabAnim, {
+        toValue: 1,
+        delay: 300,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     try {
       const res = await workScheduleApi.list();
       const list = res.data?.data ?? res.data ?? [];
@@ -340,8 +370,11 @@ export default function RadiusSettingScreen({ navigation }) {
       console.log('Load error:', e.response?.data || e.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = () => loadData(true);
 
   /* Tambah / Edit */
   const handleOpenCreate = () => {
@@ -358,7 +391,6 @@ export default function RadiusSettingScreen({ navigation }) {
     setSaving(true);
     try {
       if (editing) {
-        // Update
         const res = await workScheduleApi.update(editing.id, payload);
         const updated = res.data?.data;
         setSchedules((prev) =>
@@ -371,7 +403,6 @@ export default function RadiusSettingScreen({ navigation }) {
           message: 'Jadwal berhasil diperbarui.',
         });
       } else {
-        // Create
         const res = await workScheduleApi.create(payload);
         const created = res.data?.data;
         setSchedules((prev) => [...prev, created]);
@@ -420,154 +451,189 @@ export default function RadiusSettingScreen({ navigation }) {
     });
   };
 
-  if (loading) {
-    return (
-      <View style={styles.root}>
+  return (
+    <View style={styles.root}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <AnimatedBackground />
-        <SafeAreaView style={styles.safe}>
+      </View>
+
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        {/* ===== HEADER (sama seperti EmployeeListScreen) ===== */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialCommunityIcons
+              name="arrow-left"
+              size={22}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.headerTitle}>Setting Radius</Text>
+            <Text style={styles.headerSubtitle}>
+              {schedules.length} jadwal terdaftar
+            </Text>
+          </View>
+
+          <View style={{ width: 38 }} />
+        </View>
+
+        {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color="#2563eb" size="large" />
             <Text style={styles.loadingText}>Memuat data...</Text>
           </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.root}>
-      <AnimatedBackground />
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={() => navigation.goBack()}
-            >
-              <MaterialCommunityIcons
-                name="arrow-left"
-                size={20}
-                color="#334155"
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#2563eb']}
+                tintColor="#2563eb"
               />
-            </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Setting Radius</Text>
-              <Text style={styles.subtitle}>
-                {schedules.length} jadwal terdaftar
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.addBtn}
-              onPress={handleOpenCreate}
+            }
+          >
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }}
             >
-              <MaterialCommunityIcons name="plus" size={20} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
+              <Text style={styles.sectionTitle}>Daftar Jadwal Kerja</Text>
 
-          {/* List Schedule */}
-          <Text style={styles.sectionTitle}>Daftar Jadwal Kerja</Text>
-
-          {schedules.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <MaterialCommunityIcons
-                name="calendar-blank-outline"
-                size={48}
-                color="#cbd5e1"
-              />
-              <Text style={styles.emptyText}>
-                Belum ada jadwal. Tap + untuk menambah.
-              </Text>
-            </View>
-          ) : (
-            schedules.map((s) => (
-              <View key={s.id} style={styles.scheduleCard}>
-                <View style={styles.scheduleCardHeader}>
-                  <View style={styles.scheduleIconWrap}>
-                    <MaterialCommunityIcons
-                      name="calendar-clock"
-                      size={20}
-                      color="#2563eb"
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.scheduleName}>{s.name}</Text>
-                    <Text style={styles.scheduleTime}>
-                      {s.start_time?.substring(0, 5)} -{' '}
-                      {s.end_time?.substring(0, 5)}
-                    </Text>
-                  </View>
+              {schedules.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <MaterialCommunityIcons
+                    name="calendar-blank-outline"
+                    size={48}
+                    color="#cbd5e1"
+                  />
+                  <Text style={styles.emptyText}>
+                    Belum ada jadwal. Tap tombol Tambah di kanan bawah.
+                  </Text>
                 </View>
-
-                <View style={styles.scheduleCardBody}>
-                  <View style={styles.infoRow}>
-                    <MaterialCommunityIcons
-                      name="map-marker"
-                      size={14}
-                      color="#64748b"
-                    />
-                    <Text style={styles.infoText}>
-                      {s.location_name || 'Belum diset'}
-                    </Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <MaterialCommunityIcons
-                      name="map-marker-radius"
-                      size={14}
-                      color="#64748b"
-                    />
-                    <Text style={styles.infoText}>
-                      Radius: {s.radius_meters || 100}m
-                    </Text>
-                  </View>
-                  {s.latitude && s.longitude ? (
-                    <View style={styles.infoRow}>
-                      <MaterialCommunityIcons
-                        name="crosshairs-gps"
-                        size={14}
-                        color="#64748b"
-                      />
-                      <Text style={styles.infoText} numberOfLines={1}>
-                        {Number(s.latitude).toFixed(5)},{' '}
-                        {Number(s.longitude).toFixed(5)}
-                      </Text>
+              ) : (
+                schedules.map((s) => (
+                  <View key={s.id} style={styles.scheduleCard}>
+                    <View style={styles.scheduleCardHeader}>
+                      <View style={styles.scheduleIconWrap}>
+                        <MaterialCommunityIcons
+                          name="calendar-clock"
+                          size={20}
+                          color="#2563eb"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.scheduleName}>{s.name}</Text>
+                        <Text style={styles.scheduleTime}>
+                          {s.start_time?.substring(0, 5)} -{' '}
+                          {s.end_time?.substring(0, 5)}
+                        </Text>
+                      </View>
                     </View>
-                  ) : null}
-                </View>
 
-                <View style={styles.scheduleCardActions}>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.editBtn]}
-                    onPress={() => handleOpenEdit(s)}
-                  >
-                    <MaterialCommunityIcons
-                      name="pencil"
-                      size={14}
-                      color="#2563eb"
-                    />
-                    <Text style={styles.editBtnText}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.deleteBtn]}
-                    onPress={() => handleDelete(s)}
-                  >
-                    <MaterialCommunityIcons
-                      name="trash-can"
-                      size={14}
-                      color="#dc2626"
-                    />
-                    <Text style={styles.deleteBtnText}>Hapus</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))
-          )}
+                    <View style={styles.scheduleCardBody}>
+                      <View style={styles.infoRow}>
+                        <MaterialCommunityIcons
+                          name="map-marker"
+                          size={14}
+                          color="#64748b"
+                        />
+                        <Text style={styles.infoText}>
+                          {s.location_name || 'Belum diset'}
+                        </Text>
+                      </View>
+                      <View style={styles.infoRow}>
+                        <MaterialCommunityIcons
+                          name="map-marker-radius"
+                          size={14}
+                          color="#64748b"
+                        />
+                        <Text style={styles.infoText}>
+                          Radius: {s.radius_meters || 100}m
+                        </Text>
+                      </View>
+                      {s.latitude && s.longitude ? (
+                        <View style={styles.infoRow}>
+                          <MaterialCommunityIcons
+                            name="crosshairs-gps"
+                            size={14}
+                            color="#64748b"
+                          />
+                          <Text style={styles.infoText} numberOfLines={1}>
+                            {Number(s.latitude).toFixed(5)},{' '}
+                            {Number(s.longitude).toFixed(5)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
+                    <View style={styles.scheduleCardActions}>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.editBtn]}
+                        onPress={() => handleOpenEdit(s)}
+                      >
+                        <MaterialCommunityIcons
+                          name="pencil"
+                          size={14}
+                          color="#2563eb"
+                        />
+                        <Text style={styles.editBtnText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.deleteBtn]}
+                        onPress={() => handleDelete(s)}
+                      >
+                        <MaterialCommunityIcons
+                          name="trash-can"
+                          size={14}
+                          color="#dc2626"
+                        />
+                        <Text style={styles.deleteBtnText}>Hapus</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+
+              <View style={{ height: 100 }} />
+            </Animated.View>
+          </ScrollView>
+        )}
+
+        {/* ===== FAB TOMBOL TAMBAH (kanan bawah) ===== */}
+        <Animated.View
+          style={[
+            styles.fabWrap,
+            {
+              opacity: fabAnim,
+              transform: [
+                {
+                  scale: fabAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.4, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={handleOpenCreate}
+            activeOpacity={0.85}
+          >
+            <MaterialCommunityIcons name="plus" size={26} color="#ffffff" />
+            <Text style={styles.fabText}>Tambah</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </SafeAreaView>
 
       {/* Modal Form */}
@@ -603,33 +669,37 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#64748b', marginTop: 12, fontSize: 13 },
 
-  /* Header */
+  /* ===== HEADER — sama seperti EmployeeListScreen ===== */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 18,
+    justifyContent: 'space-between',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   backBtn: {
     width: 38,
     height: 38,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  addBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#2563eb',
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
-  subtitle: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
 
   sectionTitle: {
     fontSize: 14,
@@ -653,6 +723,8 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 10,
     textAlign: 'center',
+    paddingHorizontal: 30,
+    lineHeight: 18,
   },
 
   /* Schedule card */
@@ -714,6 +786,34 @@ const styles = StyleSheet.create({
   editBtnText: { fontSize: 12, fontWeight: '700', color: '#2563eb' },
   deleteBtn: { backgroundColor: '#fee2e2', borderColor: '#fecaca' },
   deleteBtnText: { fontSize: 12, fontWeight: '700', color: '#dc2626' },
+
+  /* FAB */
+  fabWrap: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    zIndex: 99,
+  },
+  fab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 30,
+    shadowColor: '#2563eb',
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  fabText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
 
   /* Modal */
   modalBackdrop: {
