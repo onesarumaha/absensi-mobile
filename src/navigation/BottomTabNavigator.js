@@ -8,14 +8,50 @@ import AttendanceScreen from '../screens/AttendanceScreen';
 import EmployeeListScreen from '../screens/EmployeeListScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LeaveRequestScreen from '../screens/LeaveRequestScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import RadiusSettingScreen from '../screens/RadiusSettingScreen';
+import SettingScreen from '../screens/SettingScreen';
 
 const Tab = createBottomTabNavigator();
 
 const VISIBLE_TABS = [
-  { name: 'Home',       label: 'Beranda',      icon: 'home-outline',      lib: 'ion', component: HomeScreen },
-  { name: 'Absen',      label: 'Absen',        icon: 'fingerprint',       lib: 'mci', component: AttendanceScreen, center: true },
-  { name: 'Attendance', label: 'Data Absensi', icon: 'chart-box-outline', lib: 'mci', component: AttendanceHistoryScreen },
+  {
+    name: 'Home',
+    label: 'Beranda',
+    icon: 'home-outline',
+    lib: 'ion',
+    component: HomeScreen,
+  },
+  {
+    name: 'Attendance',
+    label: 'Data Absensi',
+    icon: 'chart-box-outline',
+    lib: 'mci',
+    component: AttendanceHistoryScreen,
+  },
+  {
+    name: 'Absen',
+    label: 'Absen',
+    icon: 'fingerprint',
+    lib: 'mci',
+    component: AttendanceScreen,
+    center: true,
+  },
+  {
+    name: 'Profile',
+    label: 'Profile',
+    icon: 'account-outline',
+    lib: 'mci',
+    component: ProfileScreen,
+  },
+  {
+    name: 'Setting',
+    label: 'Setting',
+    icon: 'cog-outline',
+    lib: 'mci',
+    component: SettingScreen,
+  },
+ 
 ];
 
 /* Tab yang TERSEMBUNYI dari navbar, tapi tetap punya tab bar */
@@ -23,7 +59,6 @@ const HIDDEN_TABS = [
   { name: 'LeaveRequest', component: LeaveRequestScreen },
   { name: 'RadiusSetting', component: RadiusSettingScreen },
   { name: 'EmployeeList', component: EmployeeListScreen },
-  
 ];
 
 /* Custom Tab Bar — hanya render VISIBLE_TABS */
@@ -76,7 +111,8 @@ function CustomTabBar({ state, descriptors, navigation }) {
             );
           }
 
-          const IconComp = tab.lib === 'ion' ? Ionicons : MaterialCommunityIcons;
+          const IconComp =
+            tab.lib === 'ion' ? Ionicons : MaterialCommunityIcons;
 
           return (
             <TouchableOpacity
@@ -117,7 +153,10 @@ export default function BottomTabNavigator() {
           key={tab.name}
           name={tab.name}
           component={tab.component}
-          options={{ tabBarButton: () => null, tabBarStyle: { display: 'none' } }}  // ini akan dioverride oleh custom tabBar
+          options={{
+            tabBarButton: () => null,
+            tabBarStyle: { display: 'none' },
+          }}
         />
       ))}
 
@@ -128,7 +167,7 @@ export default function BottomTabNavigator() {
           name={tab.name}
           component={tab.component}
           options={{
-            tabBarButton: () => null,      // ← sembunyikan tombol di navbar
+            tabBarButton: () => null,
           }}
         />
       ))}

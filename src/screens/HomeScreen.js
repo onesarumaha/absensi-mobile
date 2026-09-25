@@ -1,6 +1,4 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CommonActions } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -187,42 +185,7 @@ export default function HomeScreen({ navigation }) {
     }
   };
 
-  /* ===== Logout (AsyncStorage v3 compatible) ===== */
-  const handleLogout = () => {
-    showAlert({
-      type: 'confirm',
-      title: 'Keluar Akun?',
-      message: 'Apakah Anda yakin ingin keluar dari aplikasi ini?',
-      confirmText: 'Keluar',
-      cancelText: 'Batal',
-      showCancel: true,
-      onConfirm: async () => {
-        console.log('🚪 Logging out...');
-
-        // ✅ AsyncStorage v3 — pakai removeItem satu-satu
-        try {
-          await AsyncStorage.removeItem('userToken');
-          await AsyncStorage.removeItem('userData');
-          console.log('✅ Storage cleared');
-        } catch (e) {
-          console.log('⚠️ Storage error:', e.message);
-        }
-
-        // Navigate to Login
-        try {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            })
-          );
-          console.log('✅ Navigated to Login');
-        } catch (e) {
-          console.log('❌ Navigation error:', e);
-        }
-      },
-    });
-  };
+  
 
   const handleMenuPress = (menu) => {
     if (menu.screen) navigation?.navigate(menu.screen);
@@ -680,19 +643,7 @@ export default function HomeScreen({ navigation }) {
               </View>
             </View>
 
-            {/* ===== LOGOUT ===== */}
-            <TouchableOpacity
-              style={styles.logoutRow}
-              onPress={handleLogout}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons
-                name="logout"
-                size={18}
-                color="#ef4444"
-              />
-              <Text style={styles.logoutText}>Keluar dari Akun</Text>
-            </TouchableOpacity>
+            
 
             <View style={{ height: 20 }} />
           </ScrollView>
@@ -1044,18 +995,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  /* LOGOUT */
-  logoutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 20,
-    marginBottom: 8,
-    marginHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: '#fee2e2',
-    borderRadius: 14,
-  },
-  logoutText: { color: '#ef4444', fontSize: 13, fontWeight: '700' },
+  
 });

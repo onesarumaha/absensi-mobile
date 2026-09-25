@@ -2,10 +2,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -45,6 +46,7 @@ export default function AttendanceScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [photo, setPhoto] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [mode, setMode] = useState('masuk');
   const [location, setLocation] = useState(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -67,127 +69,108 @@ export default function AttendanceScreen({ navigation }) {
     setAlertConfig((p) => ({ ...p, ...config, visible: true }));
   const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
-  /* ===== 1. Fetch work schedule (radius info) ===== */
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await attendanceApi.scheduleInfo();
-        const info = res.data?.data?.work_schedule || null;
-        setScheduleInfo(info);
-        console.log('📅 Schedule info:', info);
-      } catch (e) {
-        console.log('⚠️ schedule info error:', e.message);
-      }
-    })();
+  /* ===== 1. Fetch schedule info ===== */
+  const fetchScheduleInfo = useCallback(async () => {
+    try {
+      const res = await attendanceApi.scheduleInfo();
+      const info = res.data?.data?.work_schedule || null;
+      setScheduleInfo(info);
+      console.log('📅 Schedule info:', info);
+    } catch (e) {
+      console.log('⚠️ schedule info error:', e.message);
+    }
   }, []);
 
   /* ===== 2. Ambil lokasi ===== */
-  useEffect(() => {
-    let isMounted = true;
+  const fetchLocation = useCallback(async () => {
+    setLoadingLocation(true);
+    try {
+      let { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        const req = await Location.requestForegroundPermissionsAsync();
+        status = req.status;
+      }
 
-    const fetchLocation = async () => {
-      setLoadingLocation(true);
+      if (status !== 'granted') {
+        showAlert({
+          type: 'warning',
+          title: 'Izin Lokasi Ditolak',
+          message: 'Aplikasi butuh izin lokasi. Aktifkan di Settings HP.',
+        });
+        return;
+      }
+
+      const gpsOn = await Location.hasServicesEnabledAsync();
+      if (!gpsOn) {
+        showAlert({
+          type: 'warning',
+          title: 'GPS Tidak Aktif',
+          message: 'Aktifkan GPS di pengaturan HP Anda.',
+        });
+        return;
+      }
+
+      let loc = await Location.getLastKnownPositionAsync();
+      if (!loc) {
+        loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      }
+
+      if (!loc) throw new Error('Lokasi tidak terdeteksi');
+
+      let address = 'Lokasi terdeteksi';
+      let city = 'Lokasi Anda';
+
       try {
-        let { status } = await Location.getForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          const req = await Location.requestForegroundPermissionsAsync();
-          status = req.status;
-        }
+        const results = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
 
-        if (status !== 'granted') {
-          if (isMounted) {
-            showAlert({
-              type: 'warning',
-              title: 'Izin Lokasi Ditolak',
-              message: 'Aplikasi butuh izin lokasi. Aktifkan di Settings HP.',
-            });
-          }
-          return;
-        }
-
-        const gpsOn = await Location.hasServicesEnabledAsync();
-        if (!gpsOn) {
-          if (isMounted) {
-            showAlert({
-              type: 'warning',
-              title: 'GPS Tidak Aktif',
-              message: 'Aktifkan GPS di pengaturan HP Anda.',
-            });
-          }
-          return;
-        }
-
-        let loc = await Location.getLastKnownPositionAsync();
-        if (!loc) {
-          loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-        }
-
-        if (!loc) throw new Error('Lokasi tidak terdeteksi');
-
-        // Reverse geocode
-        let address = 'Lokasi terdeteksi';
-        let city = 'Lokasi Anda';
-
-        try {
-          const results = await Location.reverseGeocodeAsync({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          });
-
-          if (results && results.length > 0) {
-            const a = results[0];
-            const parts = [
-              a.street || a.name,
-              a.streetNumber,
-              a.district || a.subregion,
-              a.city,
-            ].filter(Boolean);
-            address = parts.join(', ') || 'Lokasi terdeteksi';
-            city = a.city || a.subregion || a.region || 'Lokasi Anda';
-          }
-        } catch (e) {
-          console.log('Reverse geocode error:', e);
-          address = `${loc.coords.latitude.toFixed(5)}, ${loc.coords.longitude.toFixed(5)}`;
-        }
-
-        if (isMounted) {
-          setLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            address,
-            city,
-          });
+        if (results && results.length > 0) {
+          const a = results[0];
+          const parts = [
+            a.street || a.name,
+            a.streetNumber,
+            a.district || a.subregion,
+            a.city,
+          ].filter(Boolean);
+          address = parts.join(', ') || 'Lokasi terdeteksi';
+          city = a.city || a.subregion || a.region || 'Lokasi Anda';
         }
       } catch (e) {
-        console.log('Location error:', e);
-        if (isMounted) {
-          showAlert({
-            type: 'error',
-            title: 'Gagal Ambil Lokasi',
-            message: e.message,
-          });
-        }
-      } finally {
-        if (isMounted) setLoadingLocation(false);
+        console.log('Reverse geocode error:', e);
+        address = `${loc.coords.latitude.toFixed(5)}, ${loc.coords.longitude.toFixed(5)}`;
       }
-    };
 
-    fetchLocation();
-
-    return () => {
-      isMounted = false;
-    };
+      setLocation({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        address,
+        city,
+      });
+    } catch (e) {
+      console.log('Location error:', e);
+      showAlert({
+        type: 'error',
+        title: 'Gagal Ambil Lokasi',
+        message: e.message,
+      });
+    } finally {
+      setLoadingLocation(false);
+    }
   }, []);
 
-  /* ===== 3. Hitung jarak ke kantor ===== */
+  /* ===== Initial load ===== */
   useEffect(() => {
-    if (
-      location &&
-      scheduleInfo?.latitude &&
-      scheduleInfo?.longitude
-    ) {
+    fetchScheduleInfo();
+    fetchLocation();
+  }, [fetchScheduleInfo, fetchLocation]);
+
+  /* ===== Hitung jarak ke kantor ===== */
+  useEffect(() => {
+    if (location && scheduleInfo?.latitude && scheduleInfo?.longitude) {
       const dist = haversineDistance(
         location.latitude,
         location.longitude,
@@ -205,6 +188,13 @@ export default function AttendanceScreen({ navigation }) {
     scheduleInfo?.radius_meters &&
     distanceToOffice <= scheduleInfo.radius_meters;
 
+  /* ===== Pull to refresh ===== */
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchScheduleInfo(), fetchLocation()]);
+    setRefreshing(false);
+  };
+
   /* ===== Permission kamera ===== */
   if (!permission) {
     return (
@@ -218,7 +208,8 @@ export default function AttendanceScreen({ navigation }) {
     return (
       <View style={styles.root}>
         <AnimatedBackground />
-        <SafeAreaView style={styles.safe} edges={['top']}>
+        <Header />
+        <SafeAreaView style={styles.safe} edges={['bottom']}>
           <View style={styles.permissionBox}>
             <MaterialCommunityIcons name="camera-off" size={64} color="#94a3b8" />
             <Text style={styles.permTitle}>Akses Kamera Dibutuhkan</Text>
@@ -339,19 +330,23 @@ export default function AttendanceScreen({ navigation }) {
   return (
     <View style={styles.root}>
       <AnimatedBackground />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+
+      {/* HEADER BIRU */}
+      <Header />
+
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#2563eb']}
+              tintColor="#2563eb"
+            />
+          }
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Absensi Wajah</Text>
-            <Text style={styles.subtitle}>
-              Posisikan wajah Anda di dalam lingkaran
-            </Text>
-          </View>
-
           {/* Toggle Masuk/Pulang */}
           <View style={styles.toggleRow}>
             <TouchableOpacity
@@ -392,7 +387,7 @@ export default function AttendanceScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* Card Lokasi + Radius */}
+          {/* Card Lokasi */}
           <View style={styles.locationCard}>
             <MaterialCommunityIcons
               name={loadingLocation ? 'crosshairs-gps' : 'map-marker-check'}
@@ -470,8 +465,12 @@ export default function AttendanceScreen({ navigation }) {
 
                 <Text style={styles.radiusSub}>
                   {distanceToOffice !== null
-                    ? `${distanceToOffice}m dari ${scheduleInfo.location_name || 'kantor'} · maks ${scheduleInfo.radius_meters}m`
-                    : `${scheduleInfo.location_name || 'Kantor'} · radius ${scheduleInfo.radius_meters}m`}
+                    ? `${distanceToOffice}m dari ${
+                        scheduleInfo.location_name || 'kantor'
+                      } · maks ${scheduleInfo.radius_meters}m`
+                    : `${scheduleInfo.location_name || 'Kantor'} · radius ${
+                        scheduleInfo.radius_meters
+                      }m`}
                 </Text>
               </View>
             </View>
@@ -515,10 +514,13 @@ export default function AttendanceScreen({ navigation }) {
                   style={[
                     styles.btn,
                     styles.btnPrimary,
-                    !isWithinRadius && distanceToOffice !== null && { opacity: 0.5 },
+                    !isWithinRadius &&
+                      distanceToOffice !== null && { opacity: 0.5 },
                   ]}
                   onPress={handleSubmit}
-                  disabled={loading || (distanceToOffice !== null && !isWithinRadius)}
+                  disabled={
+                    loading || (distanceToOffice !== null && !isWithinRadius)
+                  }
                 >
                   {loading ? (
                     <ActivityIndicator color="#ffffff" />
@@ -577,11 +579,84 @@ export default function AttendanceScreen({ navigation }) {
   );
 }
 
+/* ===== Header Biru ===== */
+function Header() {
+  return (
+    <View style={styles.header}>
+      <SafeAreaView edges={['top']}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerIconWrap}>
+            <MaterialCommunityIcons
+              name="face-recognition"
+              size={22}
+              color="#ffffff"
+            />
+          </View>
+
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>Absensi Wajah</Text>
+            <Text style={styles.headerSubtitle}>
+              Posisikan wajah di dalam lingkaran
+            </Text>
+          </View>
+
+          <View style={styles.headerIconWrap} />
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f0f9ff' },
   safe: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 8 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 14 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  /* ===== HEADER BIRU ===== */
+  header: {
+    backgroundColor: '#2563eb',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingBottom: 16,
+    shadowColor: '#2563eb',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    zIndex: 10,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  headerIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+    textAlign: 'center',
+  },
 
   /* Permission */
   permissionBox: {
@@ -612,11 +687,6 @@ const styles = StyleSheet.create({
   },
   permBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
 
-  /* Header */
-  header: { marginTop: 8, marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#0f172a' },
-  subtitle: { fontSize: 12, color: '#64748b', marginTop: 2 },
-
   /* Toggle */
   toggleRow: {
     flexDirection: 'row',
@@ -626,6 +696,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   toggleBtn: {
     flex: 1,
@@ -651,6 +726,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   locationLabel: { fontSize: 11, color: '#64748b', fontWeight: '600' },
   locationValue: {

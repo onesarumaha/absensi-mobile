@@ -1,20 +1,20 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker, {
-    DateTimePickerAndroid,
+  DateTimePickerAndroid,
 } from '@react-native-community/datetimepicker';
 import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -37,8 +37,9 @@ const INITIAL_FORM = {
 };
 
 export default function EmployeeFormScreen({ navigation, route }) {
-  const employeeId = route?.params?.id || null;
+  const employeeId = route?.params?.employeeId || null; 
   const isEdit = !!employeeId;
+
 
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
@@ -82,6 +83,9 @@ export default function EmployeeFormScreen({ navigation, route }) {
   const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
+    fadeAnim.setValue(0);
+    slideAnim.setValue(20);
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -94,7 +98,7 @@ export default function EmployeeFormScreen({ navigation, route }) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [loadingDetail]);
 
   /* ===== Ambil master data ===== */
   useEffect(() => {
@@ -125,45 +129,73 @@ export default function EmployeeFormScreen({ navigation, route }) {
     fetchMaster();
   }, []);
 
-  /* ===== Load detail kalau mode edit ===== */
   useEffect(() => {
-    if (!isEdit) return;
-    const fetchDetail = async () => {
-      setLoadingDetail(true);
-      try {
-        const res = await API.get(`/employees/${employeeId}`);
-        const data = res.data?.data || res.data || {};
-        const e = data?.employee || data;
+  if (!isEdit) return;
 
-        setForm({
-          full_name: e?.full_name || e?.user?.name || '',
-          email: e?.user?.email || e?.email || '',
-          password: '',
-          employee_number: e?.employee_number || '',
-          phone: e?.phone || '',
-          address: e?.address || '',
-          department_id: e?.department_id || e?.department?.id || null,
-          position_id: e?.position_id || e?.position?.id || null,
-          work_schedule_id:
-            e?.work_schedule_id || e?.work_schedule?.id || null,
-          join_date: e?.join_date
-            ? String(e.join_date).substring(0, 10)
-            : '',
-          status: e?.status || 'active',
-        });
-      } catch (err) {
-        console.log('❌ Fetch detail error:', err.response?.data || err.message);
-        showAlert({
-          type: 'error',
-          title: 'Gagal Memuat',
-          message: 'Tidak dapat memuat detail pegawai.',
-        });
-      } finally {
-        setLoadingDetail(false);
-      }
-    };
-    fetchDetail();
-  }, [employeeId]);
+  const fetchDetail = async () => {
+    setLoadingDetail(true);
+    try {
+      const res = await API.get(`/employees/${employeeId}`);
+
+
+      let raw = res.data?.data ?? res.data ?? {};
+      if (Array.isArray(raw)) raw = raw[0] || {};
+      const e = raw?.employee ?? raw;
+
+      const newForm = {
+        full_name:
+          e?.full_name ||
+          e?.name ||
+          e?.user?.name ||
+          e?.user?.full_name ||
+          '',
+        email: e?.email || e?.user?.email || '',
+        password: '',
+        employee_number:
+          e?.employee_number || e?.nip || e?.nik || '',
+        phone: e?.phone || e?.phone_number || e?.no_hp || '',
+        address: e?.address || e?.alamat || '',
+        department_id:
+          e?.department_id ??
+          e?.department?.id ??
+          e?.departemen_id ??
+          null,
+        position_id:
+          e?.position_id ??
+          e?.position?.id ??
+          e?.jabatan_id ??
+          null,
+        work_schedule_id:
+          e?.work_schedule_id ??
+          e?.work_schedule?.id ??
+          e?.schedule_id ??
+          null,
+        join_date: e?.join_date
+          ? String(e.join_date).substring(0, 10)
+          : e?.tanggal_masuk
+          ? String(e.tanggal_masuk).substring(0, 10)
+          : '',
+        status: e?.status || 'active',
+      };
+
+
+      setForm(newForm);
+    } catch (err) {
+    
+      showAlert({
+        type: 'error',
+        title: 'Gagal Memuat',
+        message:
+          err.response?.data?.message ||
+          'Tidak dapat memuat detail pegawai.',
+      });
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  fetchDetail();
+}, [employeeId, isEdit]);  
 
   /* ===== Helpers ===== */
   const setField = (key, value) => {

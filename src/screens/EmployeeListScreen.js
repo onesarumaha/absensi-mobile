@@ -1,18 +1,19 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import ActionSheetAlert from '../components/ActionSheetAlert';
 import AnimatedBackground from '../components/AnimatedBackground';
 import CustomAlert from '../components/CustomAlert';
 import API from '../services/api';
@@ -30,12 +31,26 @@ export default function EmployeeListScreen({ navigation }) {
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
 
+  // Alert (info/error/success)
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     type: 'info',
     title: '',
     message: '',
   });
+
+  // Action sheet (Detail / Edit / Hapus)
+  const [sheetConfig, setSheetConfig] = useState({
+    visible: false,
+    employee: null,
+  });
+
+  // Konfirmasi hapus
+  const [deleteAlert, setDeleteAlert] = useState({
+    visible: false,
+    employee: null,
+  });
+  const [deleting, setDeleting] = useState(false);
 
   const showAlert = (config) =>
     setAlertConfig((prev) => ({ ...prev, ...config, visible: true }));
@@ -68,31 +83,29 @@ export default function EmployeeListScreen({ navigation }) {
     ]).start();
   }, []);
 
-  /* ===== Normalize dari EmployeeResource ===== */
-  const normalize = (emp) => {
-    return {
-      id: emp?.id,
-      employee_number: emp?.employee_number || null,
-      full_name: emp?.full_name || 'Tanpa Nama',
-      phone: emp?.phone || null,
-      address: emp?.address || null,
-      join_date: emp?.join_date || null,
-      status: emp?.status || null,
+  /* ===== Normalize ===== */
+  const normalize = (emp) => ({
+    id: emp?.id,
+    employee_number: emp?.employee_number || null,
+    full_name: emp?.full_name || 'Tanpa Nama',
+    phone: emp?.phone || null,
+    address: emp?.address || null,
+    join_date: emp?.join_date || null,
+    status: emp?.status || null,
+    user: emp?.user || null,
+    department: emp?.department || null,
+    position: emp?.position || null,
+    work_schedule: emp?.work_schedule || null,
+    created_at: emp?.created_at || null,
+    updated_at: emp?.updated_at || null,
+  });
 
-      // Relasi
-      user: emp?.user || null,
-      department: emp?.department || null,
-      position: emp?.position || null,
-      work_schedule: emp?.work_schedule || null,
-
-      // Meta
-      created_at: emp?.created_at || null,
-      updated_at: emp?.updated_at || null,
-    };
-  };
-
-  /* ===== Fetch employees (dengan pagination) ===== */
-  const fetchEmployees = async ({ page = 1, isRefresh = false, append = false } = {}) => {
+  /* ===== Fetch ===== */
+  const fetchEmployees = async ({
+    page = 1,
+    isRefresh = false,
+    append = false,
+  } = {}) => {
     if (isRefresh) setRefreshing(true);
     else if (append) setLoadingMore(true);
     else setLoading(true);
@@ -100,8 +113,6 @@ export default function EmployeeListScreen({ navigation }) {
     try {
       const res = await API.get('/employees', { params: { page } });
 
-      // EmployeeResource::collection → Laravel paginator:
-      // { data: [...], current_page, last_page, total, per_page, ... }
       const payload = res.data;
       const items = payload?.data || [];
       const meta = {
@@ -145,7 +156,6 @@ export default function EmployeeListScreen({ navigation }) {
     fetchEmployees({ page: 1 });
   }, []);
 
-  // Auto-refresh saat kembali dari form
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchEmployees({ page: 1, isRefresh: true });
@@ -164,7 +174,7 @@ export default function EmployeeListScreen({ navigation }) {
     fetchEmployees({ page: currentPage + 1, append: true });
   };
 
-  /* ===== Search filter ===== */
+  /* ===== Search ===== */
   useEffect(() => {
     if (!search.trim()) {
       setFiltered(employees);
@@ -184,7 +194,7 @@ export default function EmployeeListScreen({ navigation }) {
     );
   }, [search, employees]);
 
-  /* ===== Format helpers ===== */
+  /* ===== Helpers ===== */
   const formatDate = (iso) => {
     if (!iso) return '-';
     const [y, m, d] = iso.split('-');
@@ -197,33 +207,106 @@ export default function EmployeeListScreen({ navigation }) {
     return { bg: '#fee2e2', text: '#dc2626' };
   };
 
-  /* ===== Handle tambah ===== */
+  /* ===== Handle aksi ===== */
   const handleAddEmployee = () => {
     navigation?.navigate('EmployeeForm');
   };
 
-  /* ===== Render item ===== */
+  const handleDetail = (emp) => {
+    showAlert({
+      type: 'info',
+      title: emp.full_name,
+      message: [
+        `NIP: ${emp.employee_number || '-'}`,
+        `Email: ${emp.user?.email || '-'}`,
+        `Jabatan: ${emp.position?.name || '-'}`,
+        `Departemen: ${emp.department?.name || '-'}`,
+        `Jadwal: ${emp.work_schedule?.name || '-'}`,
+        `No. HP: ${emp.phone || '-'}`,
+        `Alamat: ${emp.address || '-'}`,
+        `Masuk: ${formatDate(emp.join_date)}`,
+      ].join('\n'),
+    });
+  };
+
+  const handleEdit = (emp) => {
+    navigation?.navigate('EmployeeForm', { employeeId: emp.id });
+  };
+
+  const openSheet = (emp) => {
+    setSheetConfig({ visible: true, employee: emp });
+  };
+
+  const closeSheet = () => {
+    setSheetConfig({ visible: false, employee: null });
+  };
+
+  const askDelete = (emp) => {
+    setDeleteAlert({ visible: true, employee: emp });
+  };
+
+  const closeDeleteAlert = () => {
+    setDeleteAlert({ visible: false, employee: null });
+  };
+
+  const confirmDelete = async () => {
+    const emp = deleteAlert.employee;
+    if (!emp?.id) return;
+
+    setDeleting(true);
+
+    const prevEmployees = employees;
+    const prevFiltered = filtered;
+    setEmployees((list) => list.filter((e) => e.id !== emp.id));
+    setFiltered((list) => list.filter((e) => e.id !== emp.id));
+    setTotal((t) => Math.max(0, t - 1));
+
+    try {
+      await API.delete(`/employees/${emp.id}`);
+      closeDeleteAlert();
+
+      setTimeout(() => {
+        showAlert({
+          type: 'success',
+          title: 'Berhasil',
+          message: `Data "${emp.full_name}" berhasil dihapus.`,
+        });
+      }, 250);
+    } catch (error) {
+      console.log(
+        '❌ Delete employee error:',
+        error.response?.data || error.message
+      );
+
+      setEmployees(prevEmployees);
+      setFiltered(prevFiltered);
+      setTotal((t) => t + 1);
+
+      closeDeleteAlert();
+
+      setTimeout(() => {
+        showAlert({
+          type: 'error',
+          title: 'Gagal Menghapus',
+          message:
+            error.response?.data?.message ||
+            'Tidak dapat menghapus data pegawai.',
+        });
+      }, 250);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /* ===== Render item (BERSIH tanpa ikon aksi) ===== */
   const renderItem = ({ item: emp }) => {
     const statusStyle = getStatusColor(emp.status);
 
     return (
       <TouchableOpacity
         style={styles.card}
-        activeOpacity={0.75}
-        onPress={() =>
-          showAlert({
-            type: 'info',
-            title: emp.full_name,
-            message: [
-              `NIP: ${emp.employee_number || '-'}`,
-              `Email: ${emp.user?.email || '-'}`,
-              `Jabatan: ${emp.position?.name || '-'}`,
-              `Departemen: ${emp.department?.name || '-'}`,
-              `Jadwal: ${emp.work_schedule?.name || '-'}`,
-              `Masuk: ${formatDate(emp.join_date)}`,
-            ].join('\n'),
-          })
-        }
+        activeOpacity={0.8}
+        onPress={() => openSheet(emp)}
       >
         {/* Avatar */}
         <View style={styles.photoWrap}>
@@ -248,10 +331,7 @@ export default function EmployeeListScreen({ navigation }) {
               ]}
             >
               <Text
-                style={[
-                  styles.statusBadgeText,
-                  { color: statusStyle.text },
-                ]}
+                style={[styles.statusBadgeText, { color: statusStyle.text }]}
               >
                 {emp.status === 'active' ? 'Aktif' : 'Non-Aktif'}
               </Text>
@@ -299,6 +379,7 @@ export default function EmployeeListScreen({ navigation }) {
           ) : null}
         </View>
 
+        {/* Chevron — indikator bahwa kartu bisa di-tap */}
         <MaterialCommunityIcons
           name="chevron-right"
           size={22}
@@ -308,7 +389,6 @@ export default function EmployeeListScreen({ navigation }) {
     );
   };
 
-  /* ===== Render footer (loading more) ===== */
   const renderFooter = () => {
     if (!loadingMore) return null;
     return (
@@ -318,6 +398,30 @@ export default function EmployeeListScreen({ navigation }) {
       </View>
     );
   };
+
+  /* Aksi di ActionSheet */
+  const sheetActions = sheetConfig.employee
+    ? [
+        {
+          icon: 'account-details-outline',
+          label: 'Lihat Detail',
+          color: '#2563eb',
+          onPress: () => handleDetail(sheetConfig.employee),
+        },
+        {
+          icon: 'pencil-outline',
+          label: 'Ubah Data',
+          color: '#2563eb',
+          onPress: () => handleEdit(sheetConfig.employee),
+        },
+        {
+          icon: 'trash-can-outline',
+          label: 'Hapus Pegawai',
+          danger: true,
+          onPress: () => askDelete(sheetConfig.employee),
+        },
+      ]
+    : [];
 
   return (
     <View style={styles.root}>
@@ -340,20 +444,14 @@ export default function EmployeeListScreen({ navigation }) {
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.headerTitle}>Data Pegawai</Text>
-            <Text style={styles.headerSubtitle}>
-              Total: {total} pegawai
-            </Text>
+            <Text style={styles.headerSubtitle}>Total: {total} pegawai</Text>
           </View>
           <View style={{ width: 38 }} />
         </View>
 
         {/* SEARCH */}
         <View style={styles.searchWrap}>
-          <MaterialCommunityIcons
-            name="magnify"
-            size={20}
-            color="#94a3b8"
-          />
+          <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
           <TextInput
             style={styles.searchInput}
             placeholder="Cari nama, email, NIP, jabatan..."
@@ -443,16 +541,40 @@ export default function EmployeeListScreen({ navigation }) {
             onPress={handleAddEmployee}
             activeOpacity={0.85}
           >
-            <MaterialCommunityIcons
-              name="plus"
-              size={26}
-              color="#ffffff"
-            />
+            <MaterialCommunityIcons name="plus" size={26} color="#ffffff" />
             <Text style={styles.fabText}>Tambah</Text>
           </TouchableOpacity>
         </Animated.View>
       </SafeAreaView>
 
+      {/* ACTION SHEET (Detail / Edit / Hapus) */}
+      <ActionSheetAlert
+        visible={sheetConfig.visible}
+        title={sheetConfig.employee?.full_name}
+        subtitle={sheetConfig.employee?.position?.name || 'Pegawai'}
+        actions={sheetActions}
+        cancelText="Batal"
+        onClose={closeSheet}
+      />
+
+      {/* KONFIRMASI HAPUS */}
+      <CustomAlert
+        visible={deleteAlert.visible}
+        type="confirm"
+        title="Hapus Pegawai?"
+        message={
+          deleteAlert.employee
+            ? `Data "${deleteAlert.employee.full_name}" akan dihapus permanen dan tidak dapat dikembalikan.`
+            : ''
+        }
+        confirmText={deleting ? 'Menghapus...' : 'Hapus'}
+        cancelText="Batal"
+        showCancel={true}
+        onClose={closeDeleteAlert}
+        onConfirm={confirmDelete}
+      />
+
+      {/* ALERT INFO/ERROR/SUCCESS */}
       <CustomAlert
         visible={alertConfig.visible}
         type={alertConfig.type}
@@ -534,6 +656,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
+  /* CARD — bersih tanpa aksi */
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -549,6 +672,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f1f5f9',
   },
+
   photoWrap: { position: 'relative' },
   photoPlaceholder: {
     width: 54,
@@ -631,7 +755,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* FAB */
   fabWrap: {
     position: 'absolute',
     right: 20,
